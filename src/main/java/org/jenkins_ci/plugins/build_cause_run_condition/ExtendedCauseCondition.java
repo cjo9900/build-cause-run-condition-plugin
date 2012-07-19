@@ -167,7 +167,7 @@ public class ExtendedCauseCondition extends AlwaysPrebuildRunCondition {
          *         false if not allowed to proceed.
          */
         public boolean runPerform(final AbstractBuild<?, ?> build, final BuildListener listener) throws InterruptedException {
-            List<Cause> buildCauses = build.getCauses();
+            List<Cause> buildCauses = build.getRootBuild().getCauses();
 
             for (Cause cause : buildCauses) {
                 listener.getLogger().println(cause.getClass().getName());
@@ -285,7 +285,7 @@ public class ExtendedCauseCondition extends AlwaysPrebuildRunCondition {
          *         false if not allowed to proceed.
          */
         public boolean runPerform(final AbstractBuild<?, ?> build, final BuildListener listener) throws InterruptedException {
-            List<Cause> buildCauses = build.getCauses();
+            List<Cause> buildCauses = build.getRootBuild().getCauses();
 
             for (Cause cause : buildCauses) {
                 if (Cause.UpstreamCause.class.isInstance(cause)) {

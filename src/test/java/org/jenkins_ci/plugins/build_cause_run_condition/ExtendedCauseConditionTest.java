@@ -49,9 +49,13 @@ import org.jenkins_ci.plugins.build_cause_run_condition.ExtendedCauseCondition.U
 import org.jenkins_ci.plugins.build_cause_run_condition.ExtendedCauseCondition.UserBuildCauseCondition;
 import org.jenkins_ci.plugins.run_condition.RunCondition;
 
+import org.jenkins_ci.plugins.run_condition.BuildStepRunner;
+import org.jenkins_ci.plugins.run_condition.BuildStepRunner.Run;
+import org.jenkinsci.plugins.conditionalbuildstep.ConditionalBuilder;
 
 import org.junit.Test;
 import org.jvnet.hudson.test.HudsonTestCase;
+import org.jvnet.hudson.test.Bug;
 import java.util.Collections;
 
 public class ExtendedCauseConditionTest extends HudsonTestCase {
@@ -205,6 +209,100 @@ public class ExtendedCauseConditionTest extends HudsonTestCase {
 
         // use same causes as above
         runtest(BuildCauses, condition, false);
+    }
+
+
+    @Bug(14438)
+    @Test
+    public void testMatrixUpstreamCause() throws Exception {
+
+        // setup some Causes
+        FreeStyleProject upProject = createFreeStyleProject("firstProject");
+        FreeStyleBuild upBuild = upProject.scheduleBuild2(0).get();
+
+        Cause upstreamCause = new UpstreamCause(upBuild);
+        Cause userCause = createUserCause("testUser");
+
+        // test upstream condition
+        RunCondition condition = new ExtendedCauseCondition(new UpstreamCauseCondition("firstProject"), false);
+        runMatrixTest(upstreamCause, condition, true);
+        runMatrixTest(userCause, condition, false);
+
+        //test User condition
+        condition = new ExtendedCauseCondition(new UpstreamCauseCondition("not_exist_proj"), false);
+        runMatrixTest(upstreamCause, condition, false);
+        runMatrixTest(userCause, condition, false);
+
+
+
+    }
+    @Bug(14438)
+    @Test
+    public void testMatrixUserCause() throws Exception {
+
+        // setup some Causes
+        FreeStyleProject upProject = createFreeStyleProject("secondProject");
+        FreeStyleBuild upBuild = upProject.scheduleBuild2(0).get();
+
+        Cause upstreamCause = new UpstreamCause(upBuild);
+        Cause userCause = createUserCause("testUser");
+
+        //test Any User condition
+        RunCondition condition = new ExtendedCauseCondition(new UserBuildCauseCondition(""), false);
+
+        runMatrixTest(upstreamCause, condition, false);
+        runMatrixTest(userCause, condition, true);
+
+        //test User condition
+        condition = new ExtendedCauseCondition(new UserBuildCauseCondition("testUser"), false);
+
+        runMatrixTest(upstreamCause, condition, false);
+        runMatrixTest(userCause, condition, true);
+
+        //test not User condition
+        condition = new ExtendedCauseCondition(new UserBuildCauseCondition("NotMatching"), false);
+
+        runMatrixTest(upstreamCause, condition, false);
+        runMatrixTest(userCause, condition, false);
+    }
+
+
+    private void runMatrixTest(Cause buildTrigger, RunCondition condition, Boolean builderRuns) throws Exception {
+        MatrixProject matrixProject = createMatrixProject();
+
+        // if the builder should run the result for each subbuild should be unstable
+        // if the builder is not to run the result for each subbuild should be success.
+        Result testResult = builderRuns ? Result.UNSTABLE:Result.SUCCESS;
+
+        // create conditional build step requirements
+        List<Builder> builders = Collections.singletonList((Builder)new MockBuilder(Result.UNSTABLE));
+
+        BuildStepRunner runner = new Run();
+
+        // add conditional build step
+        matrixProject.getBuildersList().add(new ConditionalBuilder(condition, runner, builders));
+
+        MatrixBuild matrixBuild = matrixProject.scheduleBuild2(0, buildTrigger).get();
+
+        List<MatrixRun> runs = matrixBuild.getRuns();
+        assertEquals(4,runs.size());
+        for (MatrixRun run : runs) {
+            assertBuildStatus(testResult, run);
+        }
+
+    }
+
+    @Override
+    protected MatrixProject createMatrixProject(String name) throws IOException {
+        MatrixProject p = super.createMatrixProject(name);
+
+        // set up 2x2 matrix
+        AxisList axes = new AxisList();
+        axes.add(new TextAxis("db","mysql","oracle"));
+        axes.add(new TextAxis("direction","north","south"));
+        p.setAxes(axes);
+
+        return p;
     }
 
 
