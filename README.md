@@ -5,6 +5,7 @@ Licensed under [MIT Licence].
 
 About
 -----
+-----
 
 Provides an extendable build cause condition that can check addition details on why a job was started.
 Included cases are
